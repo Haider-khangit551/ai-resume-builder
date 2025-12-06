@@ -134,22 +134,78 @@ export const getPublicResumeById = async (req, res) => {
 
 
 // CONTROLLER FOR UPDATING A RESUME----->
+// export const updateResume = async (req, res) => {
+//     try {
+//         const userId = req.userId
+//         const { resumeId, resumeData, removeBackground } = req.body
+//         const image = req.file;
+
+//         let resumeDataCopy;
+//         if (typeof resumeData === 'string') {
+//             resumeDataCopy = await JSON.parse(resumeData)
+//         } else {
+//             resumeDataCopy = structuredClone(resumeData)
+//         }
+
+
+//         if (image) {
+//             const imageBufferData = fs.createReadStream(image.path)
+//             const response = await imagekit.files.upload({
+//                 file: imageBufferData,
+//                 fileName: 'resume.png',
+//                 folder: 'user-resumes',
+//                 transformation: {
+//                     pre: 'w-300, h-300, fo-face, z-0.75' +
+//                         (removeBackground ? 'e-bgremove' : '')
+//                 }
+//             })
+//             resumeDataCopy.personal_info.image = response.url
+//         }
+
+//         const resume = await Resume.findOneAndUpdate({ userId, _id: resumeId }, resumeDataCopy, { new: true })
+
+//         return res
+//             .status(200)
+//             .json({
+//                 message: "Saved Successfully",
+//                 resume
+//             })
+
+//     } catch (error) {
+//         console.log(error.message)
+//         return res
+//             .status(500)
+//             .json({
+//                 message: "Internal server error"
+//             })
+//     }
+// }   
+
+
+import mongoose from 'mongoose';
+
 export const updateResume = async (req, res) => {
     try {
-        const userId = req.userId
-        const { resumeId, resumeData, removeBackground } = req.body
+        const userId = req.userId;
+        const { resumeId, resumeData, removeBackground } = req.body;
         const image = req.file;
 
-        let resumeDataCopy;
-        if (typeof resumeData === 'string') {
-            resumeDataCopy = await JSON.parse(resumeData)
-        } else {
-            resumeDataCopy = structuredClone(resumeData)
+        // Validate resumeId
+        if (!mongoose.Types.ObjectId.isValid(resumeId)) {
+            return res.status(400).json({ message: "Invalid resume ID" });
         }
 
+        // Parse resumeData if it's a string
+        let resumeDataCopy;
+        if (typeof resumeData === 'string') {
+            resumeDataCopy = JSON.parse(resumeData);
+        } else {
+            resumeDataCopy = structuredClone(resumeData);
+        }
 
+        // Upload image if provided
         if (image) {
-            const imageBufferData = fs.createReadStream(image.path)
+            const imageBufferData = fs.createReadStream(image.path);
             const response = await imagekit.files.upload({
                 file: imageBufferData,
                 fileName: 'resume.png',
@@ -158,25 +214,28 @@ export const updateResume = async (req, res) => {
                     pre: 'w-300, h-300, fo-face, z-0.75' +
                         (removeBackground ? 'e-bgremove' : '')
                 }
-            })
-            resumeDataCopy.personal_info.image = response.url
+            });
+            resumeDataCopy.personal_info.image = response.url;
         }
 
-        const resume = await Resume.findOneAndUpdate({ userId, _id: resumeId }, resumeDataCopy, { new: true })
+        // Update with $set
+        const resume = await Resume.findOneAndUpdate(
+            { userId, _id: resumeId },
+            { $set: resumeDataCopy },
+            { new: true }
+        );
 
-        return res
-            .status(200)
-            .json({
-                message: "Saved Successfully",
-                resume
-            })
+        if (!resume) {
+            return res.status(404).json({ message: "Resume not found" });
+        }
+
+        return res.status(200).json({
+            message: "Saved Successfully",
+            resume
+        });
 
     } catch (error) {
-        console.log(error.message)
-        return res
-            .status(500)
-            .json({
-                message: "Internal server error"
-            })
+        console.error(error);
+        return res.status(500).json({ message: "Internal server error" });
     }
-}   
+}
